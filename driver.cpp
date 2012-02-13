@@ -8,6 +8,7 @@ using namespace std;
 
 int vmin, vmax, smin, smax, hmin, hmax;
 
+//test commit comment
 Mat findRectangles(Mat frame) {
 	Mat hsv;
 	Mat thresh;
