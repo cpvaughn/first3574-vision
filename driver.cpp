@@ -1,3 +1,4 @@
+#include <opencv2/core/core.hpp>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
@@ -9,113 +10,36 @@ using namespace std;
 int vmin, vmax, smin, smax, hmin, hmax;
 
 //test commit comment
-Mat findRectangles(Mat frame) {
-	Mat hsv;
-	Mat thresh;
+Mat findBall(Mat frame) {
+	Mat gray;
+	Mat edges;
 
-	cvtColor(frame, hsv, CV_BGR2HSV);
-
-	inRange(hsv, Scalar(hmin, smin, vmin), Scalar(hmax, smax, vmax), thresh);
-
-	Mat savedThresh = thresh.clone();
-
-	//Track Square
-	vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
-
-	findContours(thresh, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-	vector<Point> approx;
-	vector<vector<Point> > squares;
-
-
-	// test each contour
-	for( size_t i = 0; i < contours.size(); i++ )
-	{
-		// approximate contour with accuracy proportional
-		// to the contour perimeter
-		approxPolyDP(Mat(contours[i]), approx, arcLength(Mat(contours[i]), true)*0.02, true);
-
-		// square contours should have 4 vertices after approximation
-		// relatively large area (to filter out noisy contours)
-		// and be convex.
-		// Note: absolute value of an area is used because
-		// area may be positive or negative - in accordance with the
-		// contour orientation
-		if( approx.size() == 4 &&
-				(hierarchy[i][2] >= 0 ||
-				hierarchy[i][3] >= 0) &&
-				fabs(contourArea(Mat(approx))) > 1000 &&
-				isContourConvex(Mat(approx)) )
-		{
-			//double maxCosine = 0;
-
-			/*for( int j = 2; j < 5; j++ )
-			{
-				// find the maximum cosine of the angle between joint edges
-				double cosine = fabs(angle(approx[j%4], approx[j-2], approx[j-1]));
-				maxCosine = MAX(maxCosine, cosine);
-			}*/
-
-			// if cosines of all angles are small
-			// (all angles are ~90 degree) then write quandrange
-			// vertices to resultant sequence
-			//if( maxCosine < 0.3 )
-				squares.push_back(approx);
-		}
-	}
-
-	//cout << "Squares:: " << squares.size() << endl;
-
-	//draw loop
-	for( size_t i = 0; i < squares.size(); i++ )
-	{
-		const Point* p = &squares[i][0];
-		int n = (int)squares[i].size();
-
-		//draw rectangles
-		polylines(frame, &p, &n, 1, true, Scalar(0,0,255), 2, CV_AA);
-
-		//log points of rectangles
-		//cout << Mat(squares[1])<<endl;
-
-		vector <Point> currentRectangle = squares[i];
-
-		RotatedRect minRect;
-
-		minRect = minAreaRect( Mat(contours[i]) );
-
-
-		// Check to make sure this rectangle has another inside it
-        if (hierarchy[i][2] >= 0) {
-        	//cout <<minRect.size.width << "x" << minRect.size.height << " " << minRect.angle << endl;
-        	double mWidth = max(minRect.size.width, minRect.size.height);
-        	double pixScale = 640.0 / mWidth;
-        	double fovScale = 2.0 * 0.814; // tan(75deg / 2)
-        	cout << pixScale * fovScale * 28.6 << "in away-ish" << endl;
-        }
-
-		int centerX = (currentRectangle[0].x + currentRectangle[1].x + currentRectangle[2].x + currentRectangle[3].x)/4;
-		int centerY = (currentRectangle[0].y + currentRectangle[1].y + currentRectangle[2].y + currentRectangle[3].y)/4;
-
-		Point rectCenter(centerX,centerY);
-
-		circle(frame,rectCenter, 5, Scalar(0,0,255),1, CV_AA);
-		//log circles
-		//cout <<Mat(rectCenter)<<endl;
-	}
-	return frame ;
+	cvtColor(frame, gray, CV_BGR2GRAY);
+	    // smooth it, otherwise a lot of false circles may be detected
+	    GaussianBlur( gray, gray, Size(9, 9), 2, 2 );
+	    vector<Vec3f> circles;
+	    HoughCircles(gray, circles, CV_HOUGH_GRADIENT,
+	                 2, gray->rows/4, 200, 100 );
+	    for( size_t i = 0; i < circles.size(); i++ )
+	    {
+	         Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+	         int radius = cvRound(circles[i][2]);
+	         // draw the circle center
+	         circle( img, center, 3, Scalar(0,255,0), -1, 8, 0 );
+	         // draw the circle outline
+	         circle( img, center, radius, Scalar(0,0,255), 3, 8, 0 );
+	    }
+	    return frame;
 }
 
 int main(int argc, char** argv)
 {
-	vmin = 142;
-	smin = 160;
-	hmin = 64;
+	vmin = 20;
+	smin = 55;
+	hmin = 3;
 	vmax = 255;
-	smax = 255;
-	hmax = 98;
-	vmin = 130;
+	smax = 22;
+	hmax = 103;
 	cv::VideoCapture videoCapture;
 
 	Mat frame;
@@ -142,7 +66,7 @@ int main(int argc, char** argv)
     	videoCapture>>frame;
 
     	cout << "Captured" << endl;
-    	imshow("Output", findRectangles(frame));
+    	imshow("Output", findBall(frame));
     	if (waitKey(10) > 0)
     		break;
 
