@@ -1,12 +1,22 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
+#include <unistd.h>
+
 #include <iostream>
+#include "Socket/ClientSocket.h"
 
 using namespace cv;
 using namespace std;
 
 int vmin, vmax, smin, smax, hmin, hmax;
+
+
+void sendMessage(string msg) {
+    ClientSocket *client_socket = new ClientSocket( "10.35.74.2", 5001 );
+	*client_socket << msg;
+	delete(client_socket);
+}
 
 Mat findRectangles(Mat frame) {
 	Mat hsv;
@@ -108,6 +118,17 @@ Mat findRectangles(Mat frame) {
 
 int main(int argc, char** argv)
 {
+
+	sendMessage("500");
+
+	      usleep(3000 * 1000);
+    sendMessage("0");
+
+
+	      ClientSocket client_socket2 ( "10.35.74.2", 5001 );
+		  client_socket2 << "0";
+
+
 	vmin = 142;
 	smin = 160;
 	hmin = 64;
@@ -119,7 +140,7 @@ int main(int argc, char** argv)
 
 	Mat frame;
 
-	videoCapture.open(1);
+	videoCapture.open(0);
 
 	cout << "Opened" << endl;
 
