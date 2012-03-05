@@ -141,13 +141,13 @@ int main(int argc, char** argv)
 	cout << videoCapture.isOpened() << endl;
 	videoCapture>>frame;
 	cout << "First frame snagged" << endl;
-	namedWindow("Controls", CV_WINDOW_AUTOSIZE);
+	/*namedWindow("Controls", CV_WINDOW_AUTOSIZE);
 	createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
 	createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
 	createTrackbar( "Smin", "Controls", &smin, 255, 0 );
 	createTrackbar( "Smax", "Controls", &smax, 255, 0 );
 	createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
-	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
+	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );*/
 
 	int fc = 0;
 
@@ -155,13 +155,13 @@ int main(int argc, char** argv)
     	fc++;
     	videoCapture>>frame;
 
-    	cout << "Captured" << endl;
+    	cout << "Captured " << fc << endl;
 
-    	if (fc % 10 == 0) {
+    	/*if (fc % 10 == 0) {
     	  imshow("Output", findRectangles(frame));
     	}
     	if (waitKey(10) > 0)
-    		break;
+    		break;*/
 
     }
 
