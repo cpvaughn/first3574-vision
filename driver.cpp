@@ -119,15 +119,6 @@ Mat findRectangles(Mat frame) {
 int main(int argc, char** argv)
 {
 
-	sendMessage("500");
-
-	      usleep(3000 * 1000);
-    sendMessage("0");
-
-
-	      ClientSocket client_socket2 ( "10.35.74.2", 5001 );
-		  client_socket2 << "0";
-
 
 	vmin = 142;
 	smin = 160;
@@ -158,11 +149,17 @@ int main(int argc, char** argv)
 	createTrackbar( "Vmin", "Output", &vmin, 255, 0 );
 	createTrackbar( "Vmax", "Output", &vmax, 255, 0 );
 
+	int fc = 0;
+
     while(true) {
+    	fc++;
     	videoCapture>>frame;
 
     	cout << "Captured" << endl;
-    	imshow("Output", findRectangles(frame));
+
+    	if (fc % 10 == 0) {
+    	  imshow("Output", findRectangles(frame));
+    	}
     	if (waitKey(10) > 0)
     		break;
 
