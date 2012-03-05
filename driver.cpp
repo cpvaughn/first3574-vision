@@ -18,7 +18,7 @@ void sendMessage(string msg) {
 	delete(client_socket);
 }
 
-Mat findRectangles(Mat frame) {
+Mat findRectangles(Mat frame, bool showMask) {
 	Mat hsv;
 	Mat thresh;
 
@@ -28,6 +28,10 @@ Mat findRectangles(Mat frame) {
 
 	Mat savedThresh = thresh.clone();
 
+	if (showMask) {
+		imshow("Mask", savedThresh);
+	}
+
 	//Track Square
 	vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
@@ -36,6 +40,8 @@ Mat findRectangles(Mat frame) {
 
 	vector<Point> approx;
 	vector<vector<Point> > squares;
+
+	vector<int> goodRects;
 
 
 	// test each contour
@@ -70,17 +76,20 @@ Mat findRectangles(Mat frame) {
 			// (all angles are ~90 degree) then write quandrange
 			// vertices to resultant sequence
 			//if( maxCosine < 0.3 )
-				squares.push_back(approx);
+			squares.push_back(approx);
+				goodRects.push_back(i);
 		}
 	}
 
 	//cout << "Squares:: " << squares.size() << endl;
 
 	//draw loop
-	for( size_t i = 0; i < squares.size(); i++ )
+	for( size_t i = 0; i < goodRects.size(); i++ )
 	{
-		const Point* p = &squares[i][0];
-		int n = (int)squares[i].size();
+
+		vector<Point> currentRectangle = squares[i];
+		const Point* p = &currentRectangle[0];
+		int n = (int)currentRectangle.size();
 
 		//draw rectangles
 		polylines(frame, &p, &n, 1, true, Scalar(0,0,255), 2, CV_AA);
@@ -88,20 +97,17 @@ Mat findRectangles(Mat frame) {
 		//log points of rectangles
 		//cout << Mat(squares[1])<<endl;
 
-		vector <Point> currentRectangle = squares[i];
-
 		RotatedRect minRect;
 
-		minRect = minAreaRect( Mat(contours[i]) );
-
-
 		// Check to make sure this rectangle has another inside it
-        if (hierarchy[i][2] >= 0) {
+        if (hierarchy[goodRects[i]][2] >= 0) {
+    		minRect = minAreaRect( Mat(currentRectangle) );
+
         	//cout <<minRect.size.width << "x" << minRect.size.height << " " << minRect.angle << endl;
         	double mWidth = max(minRect.size.width, minRect.size.height);
         	double pixScale = 640.0 / mWidth;
-        	double fovScale = 2.0 * 0.814; // tan(75deg / 2)
-        	cout << pixScale * fovScale * 28.6 << "in away-ish" << endl;
+        	double fovScale = 2.0 * 0.5317; // 2 * tan(56deg / 2)
+        	cout << pixScale * fovScale << " away-ish" << endl;
         }
 
 		int centerX = (currentRectangle[0].x + currentRectangle[1].x + currentRectangle[2].x + currentRectangle[3].x)/4;
@@ -130,6 +136,7 @@ int main(int argc, char** argv)
 	cv::VideoCapture videoCapture;
 
 	Mat frame;
+	Mat savedFrame;
 
 	videoCapture.open(0);
 
@@ -141,13 +148,13 @@ int main(int argc, char** argv)
 	cout << videoCapture.isOpened() << endl;
 	videoCapture>>frame;
 	cout << "First frame snagged" << endl;
-	/*namedWindow("Controls", CV_WINDOW_AUTOSIZE);
+	namedWindow("Controls", CV_WINDOW_AUTOSIZE);
 	createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
 	createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
 	createTrackbar( "Smin", "Controls", &smin, 255, 0 );
 	createTrackbar( "Smax", "Controls", &smax, 255, 0 );
 	createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
-	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );*/
+	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
 
 	int fc = 0;
 
@@ -157,11 +164,13 @@ int main(int argc, char** argv)
 
     	cout << "Captured " << fc << endl;
 
-    	/*if (fc % 10 == 0) {
-    	  imshow("Output", findRectangles(frame));
+    	savedFrame = findRectangles(frame, (fc % 10) == 0);
+
+    	if (fc % 10 == 0) {
+    	  imshow("Output", savedFrame);
     	}
-    	if (waitKey(10) > 0)
-    		break;*/
+    	if (waitKey(1) > 0)
+    		break;
 
     }
 
