@@ -141,13 +141,13 @@ int main(int argc, char** argv)
 	cout << videoCapture.isOpened() << endl;
 	videoCapture>>frame;
 	cout << "First frame snagged" << endl;
-	namedWindow("Output", CV_WINDOW_AUTOSIZE);
-	createTrackbar( "Hmin", "Output", &hmin, 255, 0 );
-	createTrackbar( "Hmax", "Output", &hmax, 255, 0 );
-	createTrackbar( "Smin", "Output", &smin, 255, 0 );
-	createTrackbar( "Smax", "Output", &smax, 255, 0 );
-	createTrackbar( "Vmin", "Output", &vmin, 255, 0 );
-	createTrackbar( "Vmax", "Output", &vmax, 255, 0 );
+	namedWindow("Controls", CV_WINDOW_AUTOSIZE);
+	createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
+	createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
+	createTrackbar( "Smin", "Controls", &smin, 255, 0 );
+	createTrackbar( "Smax", "Controls", &smax, 255, 0 );
+	createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
+	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
 
 	int fc = 0;
 
