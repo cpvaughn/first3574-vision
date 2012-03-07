@@ -66,12 +66,12 @@ Mat findBall(Mat frame) {
 
 int main(int argc, char** argv)
 {
-	vmin = 57;
-	smin = 175;
-	hmin = 65;
+	vmin = 89;
+	smin = 209;
+	hmin = 97;
 	vmax = 255;
 	smax = 255;
-	hmax = 125;
+	hmax = 139;
 
 	vmin2 = 255;
 	smin2 = 255;
