@@ -8,7 +8,7 @@ using namespace cv;
 using namespace std;
 
 int vmin, vmax, smin, smax, hmin, hmax, vmin2, vmax2, smin2, smax2, hmin2, hmax2;
-int hi = 311, lo = 65;
+int hi = 311, lo = 165;
 
 //test commit comment
 Mat findBall(Mat frame) {
@@ -22,8 +22,8 @@ Mat findBall(Mat frame) {
 	Scalar hsvMax = Scalar(hmax,smax,vmax,0);
 
 	//second color ball
-	//Scalar hsvMin2 = Scalar(hmin2,smin2,vmin2,0);
-	//Scalar hsvMax2 = Scalar(hmax2,smax2,vmax2,0);
+	Scalar hsvMin2 = Scalar(hmin2,smin2,vmin2,0);
+	Scalar hsvMax2 = Scalar(hmax2,smax2,vmax2,0);
 
 	//convert to hsv
 	cvtColor(frame, hsvFrame, CV_RGB2HSV);
@@ -31,14 +31,14 @@ Mat findBall(Mat frame) {
 	//two halves are detected and combined to handle color wrap-around
 	inRange(hsvFrame, hsvMin, hsvMax, thresholded);
 
-	//inRange(thresholded, hsvMin2, hsvMax2, thresholded2);
-
-	//add(thresholded, thresholded2, thresholded);
-
-	//smooth image
+	//Dilate all white to create smoother circles
 	GaussianBlur(thresholded, thresholded, Size(lo,lo),0,0);
 
-	Mat savedThresh = thresholded;
+	//makes any white solid so no variance in shades
+	inRange(thresholded, hsvMin2, hsvMax2, thresholded);
+
+	//outline objects that are solid white as declared ^
+	Canny(thresholded,thresholded,1,1);
 
 	//Storage for circles
 	vector<Vec3f> circles;
@@ -52,6 +52,7 @@ Mat findBall(Mat frame) {
 		Point center(round(circles[i][0]), round(circles[i][1]));
 		float  radius = round(circles[i][2]);
 
+		//log circle x and y
 		cout<<center;
 
 		//draw circle center
