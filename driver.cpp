@@ -1,5 +1,6 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
 
 #include <unistd.h>
 
@@ -38,6 +39,56 @@ double euclidDistance(Point p1, Point p2) {
 	return sqrt(xDelta * xDelta + yDelta * yDelta);
 }
 
+Mat camera_matrix, distortion_matrix;
+
+Point2f findMidPoint(vector<Point> p) {
+	Point2f mp;
+
+	for (size_t i = 0; i <p.size(); i++) {
+		mp.x += p[i].x;
+		mp.y += p[i].y;
+	}
+
+	mp.x /= (float)p.size();
+	mp.y /= (float)p.size();
+
+	return mp;
+}
+
+// Returns the points starting from top left, going clockwise
+vector<Point2f> orderPoints(vector<Point> pts, Point2f ctr) {
+	vector<Point2f> rval(4);
+
+	for (size_t p = 0; p < pts.size(); p++) {
+		Point curPoint = pts[p];
+
+		//430.75, 405.5
+		//409, 388; 453, 423; 447, 388; 414, 423;
+/*
+		matchPoints.push_back(Point3f(-14, -10, 0)); // tl
+		matchPoints.push_back(Point3f(14, -10, 0)); // tr
+		matchPoints.push_back(Point3f(14, 10, 0)); // br
+		matchPoints.push_back(Point3f(-14, 10, 0)); //bl
+*/
+		if (curPoint.x > ctr.x) {
+			if (curPoint.y > ctr.y) { // bottom right
+				rval[2] = Point2f(curPoint.x, curPoint.y);
+			} else { // top right
+				rval[1] = Point2f(curPoint.x, curPoint.y);
+			}
+		} else {
+			if (curPoint.y > ctr.y) {
+				rval[3] = Point2f(curPoint.x, curPoint.y);
+			} else {
+				rval[0] = Point2f(curPoint.x, curPoint.y);
+			}
+		}
+	}
+
+	return rval;
+}
+Mat tvec, rvec;
+bool useGuess = false;
 Mat findRectangles(Mat frame, bool showMask) {
 	Mat hsv;
 	Mat thresh;
@@ -64,6 +115,7 @@ Mat findRectangles(Mat frame, bool showMask) {
 	vector<vector<Point> > squares;
 	vector<int> goodRects;
 
+	vector<Point> backBoards;
 
 	// test each contour
 	for( size_t i = 0; i < contours.size(); i++ )
@@ -72,6 +124,8 @@ Mat findRectangles(Mat frame, bool showMask) {
 		// to the contour perimeter
 		approxPolyDP(Mat(contours[i]), approx, arcLength(Mat(contours[i]), true)*0.02, true);
 
+		contours[i] = approx;
+
 		// square contours should have 4 vertices after approximation
 		// relatively large area (to filter out noisy contours)
 		// and be convex.
@@ -79,13 +133,15 @@ Mat findRectangles(Mat frame, bool showMask) {
 		// area may be positive or negative - in accordance with the
 		// contour orientation
 		if( approx.size() == 4 && // Only interested if there are exactly 4 points
-				(hierarchy[i][2] >= 0 || // And if it's got another rectange inside
-				hierarchy[i][3] >= 0) && // or it is inside another rectangle
+				(hierarchy[i][2] >= 0 /*|| // And if it's got another rectange inside
+				hierarchy[i][3] >= 0*/) && // or it is inside another rectangle
 				fabs(contourArea(Mat(approx))) > 500 &&
 				isContourConvex(Mat(approx)) )
 		{
 			squares.push_back(approx);
 				goodRects.push_back(i);
+
+			backBoards.push_back(Point(i, hierarchy[i][2]));
 		}
 	}
 
@@ -107,56 +163,62 @@ Mat findRectangles(Mat frame, bool showMask) {
 
 		//draw rectangles
 		polylines(frame, &p, &n, 1, true, color, 2, CV_AA);
-
-
-		// Check to make sure this rectangle has another inside it
-        if (hierarchy[goodRects[i]][2] >= 0) {
-        	/* Tell the difference between:
-        	 *
-        	 * 1-------2
-        	 * |       |
-        	 * |       |
-        	 * 0-------3
-        	 *
-        	 * 2-------3
-        	 * |       |
-        	 * |       |
-        	 * 1-------0
-        	 *
-        	 *
-        	 */
-        	double d1, d2; // The two horizontal lines
-        	if (euclidDistance(currentRectangle[0],currentRectangle[1]) > euclidDistance(currentRectangle[1],currentRectangle[2])) {
-        		d1 = euclidDistance(currentRectangle[0],currentRectangle[1]);
-        		d2 = euclidDistance(currentRectangle[2],currentRectangle[3]);
-
-        		line(frame, currentRectangle[0], currentRectangle[1], Scalar(0,255,255), 3, CV_AA);
-        		line(frame, currentRectangle[2], currentRectangle[3], Scalar(0,255,255), 3, CV_AA);
-        	} else {
-        		d1 = euclidDistance(currentRectangle[1],currentRectangle[2]);
-        		d2 = euclidDistance(currentRectangle[0],currentRectangle[3]);
-        		line(frame, currentRectangle[1], currentRectangle[2], Scalar(0,255,255), 3, CV_AA);
-        		line(frame, currentRectangle[0], currentRectangle[3], Scalar(0,255,255), 3, CV_AA);
-
-        	}
-
-        	//cout << d1 << ' ' << d2 << endl;
-
-        	double midPointDistance = (d1 + d2) / 2;
-
-
-        	double fovScale = 2.0 * 0.5317; // 2 * tan(56deg / 2)
-        	cout << (640.0 / midPointDistance) * fovScale * 2.85 << " away-ish" << endl;
-        }
-
 		int centerX = (currentRectangle[0].x + currentRectangle[1].x + currentRectangle[2].x + currentRectangle[3].x)/4;
 		int centerY = (currentRectangle[0].y + currentRectangle[1].y + currentRectangle[2].y + currentRectangle[3].y)/4;
-
 		Point rectCenter(centerX,centerY);
-
 		circle(frame,rectCenter, 5, Scalar(0,0,255),1, CV_AA);
-		//log circles
-		//cout <<Mat(rectCenter)<<endl;
+	}
+
+
+	//draw loop
+	for( size_t i = 0; i < backBoards.size(); i++ )
+	{
+
+		vector<Point> outer = contours[backBoards[i].x];
+		vector<Point> inner = contours[backBoards[i].y];
+
+		Point2f oC = findMidPoint(outer);
+		Point2f iC = findMidPoint(inner);
+
+		//cout << oC << ' ' << iC << endl;
+
+		vector<Point2f> oO = orderPoints(outer, oC);
+		vector<Point2f> iO = orderPoints(inner, iC);
+
+
+		vector<Point3f> matchPoints;
+		vector<Point2f> sourcePoints;
+
+
+		matchPoints.push_back(Point3f(-14, -10, 0)); // tl
+		matchPoints.push_back(Point3f(14, -10, 0)); // tr
+		matchPoints.push_back(Point3f(14, 10, 0)); // br
+		matchPoints.push_back(Point3f(-14, 10, 0)); //bl
+		matchPoints.push_back(Point3f(-12, -8, 0)); // tl
+		matchPoints.push_back(Point3f(12, -8, 0)); // tr
+		matchPoints.push_back(Point3f(12, 8, 0)); // br
+		matchPoints.push_back(Point3f(-12, 8, 0)); //bl
+
+
+		for (size_t i = 0; i < oO.size(); i++) {
+			sourcePoints.push_back(oO[i]);
+		}
+
+		for (size_t i = 0; i < iO.size(); i++) {
+			sourcePoints.push_back(iO[i]);
+		}
+
+		//cout << sourcePoints << endl;
+
+
+		solvePnPRansac(Mat(matchPoints), Mat(sourcePoints), camera_matrix, distortion_matrix, rvec, tvec, false, 30);
+		useGuess = true;
+
+		//cout << tvec << ' ' << rvec << endl;
+
+		double d = (tvec.ptr<double>(0))[2];
+		cout << d << " in away (" << (d / 12.) << " ft)" << endl;
+
 	}
 	return frame ;
 }
@@ -171,6 +233,13 @@ int main(int argc, char** argv)
 	vmax = 255;
 	smax = 255;
 	hmax = 90;
+
+	// This stores camera parameters from camera_calibration, used in solvePnPRansac
+	cv::FileStorage fs("ps3eye.yml", FileStorage::READ);
+
+
+	fs["camera_matrix"] >> camera_matrix;
+	fs["distortion_coefficients"] >> distortion_matrix;
 
 	cv::VideoCapture videoCapture;
 
