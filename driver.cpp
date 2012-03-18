@@ -3,7 +3,9 @@
 #include "opencv2/calib3d/calib3d.hpp"
 
 #include <unistd.h>
-
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <iostream>
 #include "Socket/ClientSocket.h"
 
@@ -87,21 +89,54 @@ vector<Point2f> orderPoints(vector<Point> pts, Point2f ctr) {
 
 	return rval;
 }
+
+void lockOn(Point2i pt) {
+
+	if (pt.x < 0) {
+		sendMessage("a0");
+		return;
+	}
+
+	double scaleFactor = .7/320.;
+
+	double delta = (pt.x - 320.) * scaleFactor;
+
+	char buf[100];
+	memset(buf, 0, 100);
+
+	sprintf(buf, "a%f", delta);
+	sendMessage(buf);
+}
+
 Mat tvec, rvec;
 bool useGuess = false;
 Mat findRectangles(Mat frame, bool showMask) {
 	Mat hsv;
 	Mat thresh;
 
+	Mat cThresh;
+
 	cvtColor(frame, hsv, CV_BGR2HSV);
 
 	inRange(hsv, Scalar(hmin, smin, vmin), Scalar(hmax, smax, vmax), thresh);
 
+	int morph_size=9;
+	Mat element = getStructuringElement( CV_SHAPE_RECT, Size( 2*morph_size + 1, 2*morph_size+1 ), Point( morph_size, morph_size ) );
+
+
+
+
+	morphologyEx( thresh, cThresh, CV_MOP_CLOSE, element );
+
+	thresh = cThresh;
+
 	Mat savedThresh = thresh.clone();
 
+#if HOST_MODE == DEV
 	if (showMask) {
 		imshow("Mask", savedThresh);
 	}
+#endif
 
 	//Track Square
 	vector<vector<Point> > contours;
@@ -145,6 +180,11 @@ Mat findRectangles(Mat frame, bool showMask) {
 		}
 	}
 
+	int maxY = -100000;
+
+	Point2i targetPoint(-1,-1);
+
+
 	//draw loop
 	for( size_t i = 0; i < goodRects.size(); i++ )
 	{
@@ -165,13 +205,24 @@ Mat findRectangles(Mat frame, bool showMask) {
 		polylines(frame, &p, &n, 1, true, color, 2, CV_AA);
 		int centerX = (currentRectangle[0].x + currentRectangle[1].x + currentRectangle[2].x + currentRectangle[3].x)/4;
 		int centerY = (currentRectangle[0].y + currentRectangle[1].y + currentRectangle[2].y + currentRectangle[3].y)/4;
+
+		if (centerY > maxY) {
+			maxY = centerY;
+			targetPoint = Point2i(centerX,centerY);
+		}
+
+
 		Point rectCenter(centerX,centerY);
 		circle(frame,rectCenter, 5, Scalar(0,0,255),1, CV_AA);
 	}
 
+	cout << targetPoint << endl;
 
-	//draw loop
-	for( size_t i = 0; i < backBoards.size(); i++ )
+//#if HOST_MODE == VSP
+	lockOn(targetPoint);
+//#endif
+
+	/*for( size_t i = 0; i < backBoards.size(); i++ )
 	{
 
 		vector<Point> outer = contours[backBoards[i].x];
@@ -190,14 +241,14 @@ Mat findRectangles(Mat frame, bool showMask) {
 		vector<Point2f> sourcePoints;
 
 
-		matchPoints.push_back(Point3f(-14, -10, 0)); // tl
-		matchPoints.push_back(Point3f(14, -10, 0)); // tr
-		matchPoints.push_back(Point3f(14, 10, 0)); // br
-		matchPoints.push_back(Point3f(-14, 10, 0)); //bl
-		matchPoints.push_back(Point3f(-12, -8, 0)); // tl
-		matchPoints.push_back(Point3f(12, -8, 0)); // tr
-		matchPoints.push_back(Point3f(12, 8, 0)); // br
-		matchPoints.push_back(Point3f(-12, 8, 0)); //bl
+		matchPoints.push_back(Point3f(-14, -12, 0)); // tl
+		matchPoints.push_back(Point3f(14, -12, 0)); // tr
+		matchPoints.push_back(Point3f(14, 12, 0)); // br
+		matchPoints.push_back(Point3f(-14, 12, 0)); //bl
+		matchPoints.push_back(Point3f(-11, -9, 0)); // tl
+		matchPoints.push_back(Point3f(11, -9, 0)); // tr
+		matchPoints.push_back(Point3f(11, 9, 0)); // br
+		matchPoints.push_back(Point3f(-11, 9, 0)); //bl
 
 
 		for (size_t i = 0; i < oO.size(); i++) {
@@ -211,15 +262,15 @@ Mat findRectangles(Mat frame, bool showMask) {
 		//cout << sourcePoints << endl;
 
 
-		solvePnPRansac(Mat(matchPoints), Mat(sourcePoints), camera_matrix, distortion_matrix, rvec, tvec, false, 30);
+		solvePnPRansac(Mat(matchPoints), Mat(sourcePoints), camera_matrix, distortion_matrix, rvec, tvec, false, 10);
 		useGuess = true;
 
-		//cout << tvec << ' ' << rvec << endl;
+		cout << tvec << ' ' << rvec << endl;
 
 		double d = (tvec.ptr<double>(0))[2];
-		cout << d << " in away (" << (d / 12.) << " ft)" << endl;
+		//cout << d << " in away (" << (d / 12.) << " ft)" << endl;
 
-	}
+	}*/
 	return frame ;
 }
 
@@ -247,7 +298,7 @@ int main(int argc, char** argv)
 	Mat savedFrame;
 
 #if HOST_MODE == DEV
-	videoCapture.open("/home/charles/full_range.mpg");
+	videoCapture.open("/home/charles/drive2.mpg");
 #else
 	videoCapture.open(0);
 #endif
@@ -260,6 +311,8 @@ int main(int argc, char** argv)
 	cout << videoCapture.isOpened() << endl;
 	videoCapture>>frame;
 	cout << "First frame snagged" << endl;
+
+#if HOST_MODE == DEV
 	namedWindow("Controls", CV_WINDOW_AUTOSIZE);
 	createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
 	createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
@@ -267,6 +320,7 @@ int main(int argc, char** argv)
 	createTrackbar( "Smax", "Controls", &smax, 255, 0 );
 	createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
 	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
+#endif
 
 	int fc = 0;
 
@@ -277,10 +331,11 @@ int main(int argc, char** argv)
     	//cout << "Captured " << fc << endl;
 
     	savedFrame = findRectangles(frame, (fc % 10) == 0);
-
+#if HOST_MODE == DEV
     	if (fc % 10 == 0) {
     	  imshow("Output", savedFrame);
     	}
+#endif
     	if (waitKey(1) > 0)
     		break;
 
