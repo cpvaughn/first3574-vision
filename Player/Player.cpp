@@ -21,6 +21,7 @@ cv::Point Player::Periodic(){
 
 	//Thresh for player
 	cv::inRange(_srcHsv1,_p1Min,_p1Max,player);
+	cv::GaussianBlur(player,player,cv::Size(7,7),1.0);
 	cv::morphologyEx(player,player, cv::MORPH_CLOSE,cv::Mat(30,10,CV_8U,cv::Scalar(30)));
 
 	// Find playerContours

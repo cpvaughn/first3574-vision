@@ -11,6 +11,7 @@ public:
 	cv::Point MoveBall(cv::Point player1, cv::Point player2);
 	cv::Mat Draw();
 	void SetSpeed(uint speed);
+	void Reset();
 	cv::Mat _src;
 	cv::Point ball;
 private:

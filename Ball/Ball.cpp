@@ -10,7 +10,6 @@ Ball::Ball(cv::Mat src)
 	dir = rand() % 4 + 1;
 
 	speed = 6;
-	AI = cv::Point(31,255);
 	hits = 0;
 
 	ball = cv::Point(320,240);
@@ -42,7 +41,7 @@ cv::Point Ball::MoveBall(cv::Point player1, cv::Point player2){
 		}
 	}
 	else
-		if (( dir == 2 ) && ( ball.x >= 0 ) && ( ball.y <= 640 ))
+		if (( dir == 2 ) && ( ball.x >= 0 ) && ( ball.y <= 480 ))
 		{
 			if (( ball.x <= 6 ) && ( ball.y >= player1.y -30 ) && ( ball.y <= player1.y + 30 ))
 			{
@@ -88,15 +87,14 @@ cv::Point Ball::MoveBall(cv::Point player1, cv::Point player2){
 				}
 				else
 				{
-					if (( dir == 1 ) || ( dir == 3 ))
+					if (dir & 1)
 					{
 						++dir;
 					}
 					else
-						if (( dir == 2 ) || ( dir == 4 ))
-						{
-							--dir;
-						}
+					{
+						--dir;
+					}
 				}
 
 	return ball;
@@ -110,5 +108,14 @@ cv::Mat Ball::Draw()
 	return _src;
 }
 
+void Ball::Reset()
+{
+	dir = rand() % 4 + 1;
 
+	speed = 6;
+	hits = 0;
+
+	ball = cv::Point(320,240);
+	ballTemp = cv::Point(320,240);
+}
 
