@@ -346,22 +346,19 @@ float distFromBasket(Basket b) {
 	return (id1 + id2 + od1 + od2) / 4.f;
 }
 
-void lockOn(Point2i pt) {
+void lockOn(float ang, float dist, float r, float m, float l) {
 
-	if (pt.x < 0) {
-		sendMessage("a0");
-		return;
-	}
+	char buf[300];
+	memset(buf, 0, 300);
 
-	double scaleFactor = .7/320.;
+	sprintf(buf, "a%f,d%f,r%f,m%f,l%f", ang, dist,r,m,l);
 
-	double delta = (pt.x - 320.) * scaleFactor;
-
-	char buf[100];
-	memset(buf, 0, 100);
-
-	sprintf(buf, "a%f", delta);
+#if HOST_MODE == 1
 	sendMessage(buf);
+#else
+	cout << buf << endl;
+#endif
+
 }
 
 void drawBasket(Basket b, Mat f) {
@@ -414,6 +411,10 @@ void loadPnPvecs(vector<Basket *> baskets, vector<Point3f>& world, vector<Point2
 	}
 }
 
+float getRotationalDelta(float xPos) {
+	return (xPos - 320.0f) / 28.0f;
+}
+
 Mat tvec, rvec;
 bool useGuess = false;
 Mat findRectangles(Mat frame, bool showMask, int frameCount) {
@@ -438,11 +439,9 @@ Mat findRectangles(Mat frame, bool showMask, int frameCount) {
 
 	Mat savedThresh = thresh.clone();
 
-#if HOST_MODE == 0
 	if (showMask) {
 		imshow("Mask", savedThresh);
 	}
-#endif
 
 	//Track Square
 	vector<vector<Point> > contours;
@@ -509,116 +508,33 @@ Mat findRectangles(Mat frame, bool showMask, int frameCount) {
 	float dFB = 0.f;
 
 	for (int i = 0; i < bsks.size(); i++) {
-		drawBasket(*bsks[i], frame);
+		if (showMask)
+			drawBasket(*bsks[i], frame);
 		dFB += distFromBasket(*bsks[i]);
 	}
 
-	if (bsks.size() > 0)
-		cout << "Dist rat: " << (bsks.size() / dFB) * 1200.0 << endl;
+	if (bsks.size() > 0) {
+		float r = -10000;
+		float m = -10000;
+		float l = -10000;
 
-/*	loadPnPvecs(bsks, world, cam);
-
-	//cout << ' ' << world << " " << cam << endl;
-
-	if (cam.size() >= 8 && world.size() >= 8) {
-
-		solvePnPRansac(Mat(world), Mat(cam), camera_matrix, distortion_matrix, rvec, tvec, false, 10);
-
-		//cout << tvec << ' ' << rvec << endl;
-
-		double d = (tvec.ptr<double>(0))[2];
-		cout << d << " in away (" << (d / 12.) << " ft)" << endl;
-	}*/
-
-
-	//draw loop
-/*	for( size_t i = 0; i < goodRects.size(); i++ )
-	{
-
-		vector<Point> currentRectangle = squares[i];
-		const Point* p = &currentRectangle[0];
-		int n = (int)currentRectangle.size();
-
-		// Red in BGR
-		Scalar color = Scalar(0,0,255);
-
-		// Is an inner rectangle
-		if (hierarchy[goodRects[i]][3] >= 0) {
-			color = Scalar(255,0,0);
+		for (size_t i = 0; i < bsks.size(); i++) {
+			switch (bsks[i]->whichBasket) {
+			case TOP_HOOP: m = getRotationalDelta(bsks[i]->innerCenter.x); break;
+			case BOTTOM_HOOP: m = getRotationalDelta(bsks[i]->innerCenter.x); break;
+			case RIGHT_HOOP: r = getRotationalDelta(bsks[i]->innerCenter.x); break;
+			case LEFT_HOOP: l = getRotationalDelta(bsks[i]->innerCenter.x); break;
+			}
 		}
 
-		//draw rectangles
-		polylines(frame, &p, &n, 1, true, color, 2, CV_AA);
-		int centerX = (currentRectangle[0].x + currentRectangle[1].x + currentRectangle[2].x + currentRectangle[3].x)/4;
-		int centerY = (currentRectangle[0].y + currentRectangle[1].y + currentRectangle[2].y + currentRectangle[3].y)/4;
-
-		if (centerY > maxY) {
-			maxY = centerY;
-			targetPoint = Point2i(centerX,centerY);
-		}
-
-
-		Point rectCenter(centerX,centerY);
-		circle(frame,rectCenter, 5, Scalar(0,0,255),1, CV_AA);
+		lockOn(0, (bsks.size() / dFB) * 1200.0, r, m, l);
+	} else {
+		lockOn(-10000, -10000, -10000, -10000, -10000);
 	}
 
-	cout << targetPoint << endl;*/
-
-#if HOST_MODE == 1
-	lockOn(targetPoint);
-#endif
-
-/*	for( size_t i = 0; i < backBoards.size(); i++ )
-	{
-
-		vector<Point> outer = contours[backBoards[i].x];
-		vector<Point> inner = contours[backBoards[i].y];
-
-		Point2f oC = findMidPoint(outer);
-		Point2f iC = findMidPoint(inner);
-
-		//cout << oC << ' ' << iC << endl;
-
-		vector<Point2f> oO = orderPoints(outer, oC);
-		vector<Point2f> iO = orderPoints(inner, iC);
 
 
-		vector<Point3f> matchPoints;
-		vector<Point2f> sourcePoints;
-
-
-		matchPoints.push_back(Point3f(-14, -12, 0)); // tl
-		matchPoints.push_back(Point3f(14, -12, 0)); // tr
-		matchPoints.push_back(Point3f(14, 12, 0)); // br
-		matchPoints.push_back(Point3f(-14, 12, 0)); //bl
-		matchPoints.push_back(Point3f(-11, -9, 0)); // tl
-		matchPoints.push_back(Point3f(11, -9, 0)); // tr
-		matchPoints.push_back(Point3f(11, 9, 0)); // br
-		matchPoints.push_back(Point3f(-11, 9, 0)); //bl
-
-
-		for (size_t i = 0; i < oO.size(); i++) {
-			sourcePoints.push_back(oO[i]);
-		}
-
-		for (size_t i = 0; i < iO.size(); i++) {
-			sourcePoints.push_back(iO[i]);
-		}
-
-		//cout << sourcePoints << endl;
-
-
-		solvePnPRansac(Mat(matchPoints), Mat(sourcePoints), camera_matrix, distortion_matrix, rvec, tvec, false, 10);
-		useGuess = true;
-
-		cout << tvec << ' ' << rvec << endl;
-
-		double d = (tvec.ptr<double>(0))[2];
-		//cout << d << " in away (" << (d / 12.) << " ft)" << endl;
-
-	}*/
-
-	for (int i = 0; i < bsks.size(); i++) {
+	for (size_t i = 0; i < bsks.size(); i++) {
 		delete(bsks[i]);
 	}
 
@@ -629,7 +545,7 @@ int fC = 0;
 
 int main(int argc, char** argv)
 {
-
+    bool haveDisplay = getenv("DISPLAY");
 
 	vmin = 60;
 	smin = 120;
@@ -667,38 +583,36 @@ int main(int argc, char** argv)
 	videoCapture>>frame;
 	cout << "First frame snagged" << endl;
 
-#if HOST_MODE == 0
-	namedWindow("Controls", CV_WINDOW_AUTOSIZE);
-	createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
-	createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
-	createTrackbar( "Smin", "Controls", &smin, 255, 0 );
-	createTrackbar( "Smax", "Controls", &smax, 255, 0 );
-	createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
-	createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
-#endif
-
+	if (haveDisplay) {
+		namedWindow("Controls", CV_WINDOW_AUTOSIZE);
+		createTrackbar( "Hmin", "Controls", &hmin, 255, 0 );
+		createTrackbar( "Hmax", "Controls", &hmax, 255, 0 );
+		createTrackbar( "Smin", "Controls", &smin, 255, 0 );
+		createTrackbar( "Smax", "Controls", &smax, 255, 0 );
+		createTrackbar( "Vmin", "Controls", &vmin, 255, 0 );
+		createTrackbar( "Vmax", "Controls", &vmax, 255, 0 );
+	}
 	int fc = 0;
+
+	bool showFrame = haveDisplay;
 
     while(true) {
     	fc++;
     	videoCapture>>frame;
 
-    	//cout << "Captured " << fc << endl;
-
-
-#if HOST_MODE == 0
-    	savedFrame = findRectangles(frame, true, fC++);
-    	  imshow("Output", savedFrame);
-#else
-      	savedFrame = findRectangles(frame, false, fC++);
+#if HOST_MODE == 1
+    	showFrame = haveDisplay && (fc % 10 == 0);
 #endif
-    	if (waitKey(1) > 0)
+
+    	savedFrame = findRectangles(frame, showFrame, fc);
+    	if (showFrame) {
+    		imshow("Output", savedFrame);
+    	}
+
+    	if (haveDisplay && waitKey(1) > 0)
     		break;
 
     }
-
-
-    waitKey();
 
     return 0;
 }
