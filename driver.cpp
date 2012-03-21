@@ -38,7 +38,7 @@ int vmin, vmax, smin, smax, hmin, hmax;
 
 
 
-void addBasket(vector<Point3f> pts, float x, float y) {
+void addBasket(vector<Point3f> & pts, float x, float y) {
 	pts.push_back(Point3f(-OUTER_WIDTH / 2 + x, -OUTER_HEIGHT / 2 + y, 0)); // tl
 	pts.push_back(Point3f(OUTER_WIDTH / 2 + x, -OUTER_HEIGHT / 2 + y, 0)); // tr
 	pts.push_back(Point3f(OUTER_WIDTH / 2 + x, OUTER_HEIGHT / 2 + y, 0)); // br
@@ -204,7 +204,6 @@ bool inferBaskets(vector<Basket *> baskets, int frameNum) {
 				baskets[leftLeast]->whichBasket = LEFT_HOOP;
 				baskets[rightMost]->whichBasket = RIGHT_HOOP;
 
-				cout << "Hengh" << endl;
 				if (topLeast == leftLeast || topLeast == rightMost) { // The 'top' hoop is actually one of the middle ones
 					baskets[bottomMost]->whichBasket = BOTTOM_HOOP;
 					return true;
@@ -215,7 +214,6 @@ bool inferBaskets(vector<Basket *> baskets, int frameNum) {
 			} else {
 				baskets[topLeast]->whichBasket = TOP_HOOP;
 				baskets[bottomMost]->whichBasket = BOTTOM_HOOP;
-				cout << "Hah" << endl;
 				if (leftLeast == topLeast || leftLeast == bottomMost) { // The 'left' hoop is actually one of the top or bottom
 					baskets[rightMost]->whichBasket = RIGHT_HOOP;
 					return true;
@@ -234,6 +232,7 @@ bool inferBaskets(vector<Basket *> baskets, int frameNum) {
 				baskets[bottomMost]->whichBasket = BOTTOM_HOOP;
 				return true;
 			} else { // Handle the diagonals
+
 				if (topLeast == leftLeast) { // Either Top and right hoop, or left and bottom hoop
 					if (baskets[bottomMost]->innerCenter.y > 240) { // it's the bottom
 						baskets[bottomMost]->whichBasket = BOTTOM_HOOP;
@@ -305,14 +304,6 @@ vector<Point2f> orderPoints(vector<Point> pts, Point2f ctr) {
 	for (size_t p = 0; p < pts.size(); p++) {
 		Point curPoint = pts[p];
 
-		//430.75, 405.5
-		//409, 388; 453, 423; 447, 388; 414, 423;
-/*
-		matchPoints.push_back(Point3f(-14, -10, 0)); // tl
-		matchPoints.push_back(Point3f(14, -10, 0)); // tr
-		matchPoints.push_back(Point3f(14, 10, 0)); // br
-		matchPoints.push_back(Point3f(-14, 10, 0)); //bl
-*/
 		if (curPoint.x > ctr.x) {
 			if (curPoint.y > ctr.y) { // bottom right
 				rval[2] = Point2f(curPoint.x, curPoint.y);
@@ -329,6 +320,30 @@ vector<Point2f> orderPoints(vector<Point> pts, Point2f ctr) {
 	}
 
 	return rval;
+}
+
+float distFromBasket(Basket b) {
+	vector<Point2f> box;
+
+	box = orderPoints(b.outer, b.outerCenter);
+
+	float od1 = euclidDistance(box[0], box[1]);
+	float od2 = euclidDistance(box[3], box[2]);
+
+	box = orderPoints(b.inner, b.innerCenter);
+
+	float id1 = euclidDistance(box[0], box[1]);
+	float id2 = euclidDistance(box[3], box[2]);
+
+	od1 = od1 / OUTER_HEIGHT;
+	od2 = od2 / OUTER_HEIGHT;
+
+	id1 = id1 / INNER_HEIGHT;
+	id2 = id2 / INNER_HEIGHT;
+
+	//cout << id1 << ' ' << id2 << ' ' << od1 << ' ' << od2 << endl;
+
+	return (id1 + id2 + od1 + od2) / 4.f;
 }
 
 void lockOn(Point2i pt) {
@@ -376,6 +391,27 @@ void drawBasket(Basket b, Mat f) {
 	//draw rectangles
 	polylines(f, &p1, &n1, 1, true, color, 2, CV_AA);
 	polylines(f, &p2, &n2, 1, true, color, 2, CV_AA);
+}
+
+void loadPnPvecs(vector<Basket *> baskets, vector<Point3f>& world, vector<Point2f>& camera) {
+	for (size_t i = 0; i < baskets.size(); i++) {
+		switch (baskets[i]->whichBasket) {
+		case TOP_HOOP: addBasket(world, 0, 109); break;
+		case BOTTOM_HOOP: addBasket(world, 0, 39); break;
+		case LEFT_HOOP: addBasket(world, -27.380, 72); break;
+		case RIGHT_HOOP: addBasket(world, 27.380, 72); break;
+		}
+
+		for (size_t j = 0; j < baskets[i]->outer.size(); j++) {
+			camera.push_back(baskets[i]->outer[j]);
+		}
+
+		for (size_t j = 0; j < baskets[i]->inner.size(); j++) {
+			camera.push_back(baskets[i]->inner[j]);
+		}
+
+
+	}
 }
 
 Mat tvec, rvec;
@@ -455,8 +491,8 @@ Mat findRectangles(Mat frame, bool showMask, int frameCount) {
 	for (int i = 0; i < backBoards.size(); i++) {
 		vector<Point> inner, outer;
 
-		outer = contours[backBoards[i].x];
-		inner = contours[backBoards[i].y];
+		outer = contours[backBoards[i].y];
+		inner = contours[backBoards[i].x];
 		bsks.push_back(new Basket(outer, inner));
 	}
 
@@ -467,12 +503,32 @@ Mat findRectangles(Mat frame, bool showMask, int frameCount) {
 	inferBaskets(bsks, frameCount);
 	updateLastBaskets(bsks, frameCount);
 
+	vector<Point3f> world;
+	vector<Point2f> cam;
+
+	float dFB = 0.f;
+
 	for (int i = 0; i < bsks.size(); i++) {
 		drawBasket(*bsks[i], frame);
-		cout << bsks[i]->whichBasket << ' ';
+		dFB += distFromBasket(*bsks[i]);
 	}
 
-	cout << endl;
+	if (bsks.size() > 0)
+		cout << "Dist rat: " << (bsks.size() / dFB) * 1200.0 << endl;
+
+/*	loadPnPvecs(bsks, world, cam);
+
+	//cout << ' ' << world << " " << cam << endl;
+
+	if (cam.size() >= 8 && world.size() >= 8) {
+
+		solvePnPRansac(Mat(world), Mat(cam), camera_matrix, distortion_matrix, rvec, tvec, false, 10);
+
+		//cout << tvec << ' ' << rvec << endl;
+
+		double d = (tvec.ptr<double>(0))[2];
+		cout << d << " in away (" << (d / 12.) << " ft)" << endl;
+	}*/
 
 
 	//draw loop
